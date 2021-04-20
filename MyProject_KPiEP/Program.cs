@@ -29,7 +29,6 @@ namespace MyProject_KPiEP
             var messege = e.Message;
             if (messege.Text!=null)
             {
-                //await client.SendTextMessageAsync(messege.Chat.Id,messege.Text,replyToMessageId: messege.MessageId); // отвечает с ссылкой на присланное сообщение
                 switch (messege.Text)
                 {
                     case "sticker":
@@ -56,6 +55,12 @@ namespace MyProject_KPiEP
                             replyMarkup : GetButtons()
                             );
                         break;
+                    case "test":
+                        await client.SendTextMessageAsync(
+                            messege.Chat.Id,
+                            $"InLineButton",replyMarkup: GetInLineButton(1)
+                            );
+                        break;
                     default:
                         await client.SendTextMessageAsync(
                             messege.Chat.Id,
@@ -67,13 +72,18 @@ namespace MyProject_KPiEP
             }
         }
 
+        private static IReplyMarkup GetInLineButton(int id)
+        {
+            return new InlineKeyboardMarkup(new InlineKeyboardButton { Text = "vlad", CallbackData=id.ToString() }); ;
+        }
+
         private static IReplyMarkup GetButtons()
         {
             return new ReplyKeyboardMarkup
             {
                 Keyboard = new List<List<KeyboardButton>>
                 {
-                    new List<KeyboardButton> { new KeyboardButton { Text = "sticker" }, new KeyboardButton { Text = "image" } }
+                    new List<KeyboardButton> { new KeyboardButton { Text = "sticker" }, new KeyboardButton { Text = "image" }, new KeyboardButton {Text = "test" } }
                 }
             };
         }
