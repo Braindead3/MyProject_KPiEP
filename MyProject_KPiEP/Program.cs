@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace MyProject_KPiEP
@@ -13,15 +15,44 @@ namespace MyProject_KPiEP
         static TelegramBotClient client;
         static void Main(string[] args)
         {
-            client = new TelegramBotClient(BotToken);
+            //client = new TelegramBotClient(BotToken);
 
-            client.StartReceiving();
+            //client.StartReceiving();
 
-            client.OnMessage += Client_OnMessage;
+            //client.OnMessage += Client_OnMessage;
+            //client.OnCallbackQuery += Client_OnCallbackQuery;
 
-            Console.ReadKey();
+            //Console.ReadKey();
+
+            //client.StopReceiving();
+
+
+            using (var dataSource = new DataContext())
+            {
+                dataSource.Notes.Add(new NotesEntity { Text="vlad1" });
+                dataSource.Notes.Add(new NotesEntity { Text="vlad2" });
+                dataSource.SaveChanges();
+
+                var notes = dataSource.Notes.ToList();
+
+                foreach (var note in notes)
+                {
+                    Console.WriteLine(note.Text);
+                }
+            }
+        }
+
+        private static async void Client_OnCallbackQuery(object sender, Telegram.Bot.Args.CallbackQueryEventArgs e)
+        {
+            switch (e.CallbackQuery.Data)
+            {
+                case "1":
+                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id,"otvet",replyMarkup: GetButtons());
+                    break;
+                default:
+                    break;
+            }
             
-            client.StopReceiving();
         }
 
         private static async void Client_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
