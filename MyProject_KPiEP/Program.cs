@@ -1,10 +1,15 @@
 ﻿using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
+using System.Data.Entity.Core.Metadata.Edm;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks.Dataflow;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.InlineQueryResults.Abstractions;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace MyProject_KPiEP
@@ -13,44 +18,52 @@ namespace MyProject_KPiEP
     {
         static string BotToken { get; set; } = "1713856634:AAEtV-XyEnqhmJAcNCOfLedlvxSjj5cftz8";
         static TelegramBotClient client;
-        static bool addNote = false;
+        static bool addNoteName = false, addNoteText = false, viewNote = false, delNote = false,editNote=false,editNoteName=false,editNoteText=false;
         static NotesEntity note= new NotesEntity();
+        static List<NotesEntity> notes = new List<NotesEntity>();
+        static string noteText="", noteName="";
+        static int noteId=0;
         static void Main(string[] args)
         {
             client = new TelegramBotClient(BotToken);
-
+            notes = GetAllNotes();
             client.StartReceiving();
-
+            Console.WriteLine("Пуск");
             client.OnMessage += Client_OnMessage;
             client.OnCallbackQuery += Client_OnCallbackQuery;
 
             Console.ReadKey();
 
             client.StopReceiving();
-
-
-            //using (var dataSource = new DataContext())
-            //{
-            //    dataSource.Notes.Add(new NotesEntity { Text="vlad1" });
-            //    dataSource.Notes.Add(new NotesEntity { Text="vlad2" });
-            //    dataSource.SaveChanges();
-
-            //    var notes = dataSource.Notes.ToList();
-
-            //    foreach (var note in notes)
-            //    {
-            //        Console.WriteLine(note.Text);
-            //    }
-            //}
         }
 
         private static async void Client_OnCallbackQuery(object sender, Telegram.Bot.Args.CallbackQueryEventArgs e)
         {
             switch (e.CallbackQuery.Data)
             {
-                case "1":
-                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id,"otvet",replyMarkup: GetButtons());
+                case "editN":
+                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id,"Введите новое имя");
+                    editNoteName = true;
                     break;
+
+                case "editT":
+                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id, "Введите новое содержание");
+                    editNoteText = true;
+                    break;
+
+                case "Save":
+                    using (var context = new DataContext())
+                    {
+                        var editedNote = context.Notes.Select(x => x).Where(x => x.Id == noteId).FirstOrDefault();
+                        editedNote.Text = noteText;
+                        editedNote.NoteName = noteName;
+                        context.SaveChanges();
+                        editNote = false;
+                        notes = context.Notes.ToList();
+                    }
+                    await client.SendTextMessageAsync(e.CallbackQuery.Message.Chat.Id,"Изменение прошло успешно!");
+                    break;
+
                 default:
                     break;
             }
@@ -64,50 +77,105 @@ namespace MyProject_KPiEP
             {
                 switch (messege.Text)
                 {
-                    //case "sticker":
-                    //    await client.SendStickerAsync(
-                    //        chatId: messege.Chat.Id,
-                    //        sticker: "https://tlgrm.ru/_/stickers/ff6/4b6/ff64b611-aa7c-3603-b73c-7cd86d4b71dc/10.webp",
-                    //        replyToMessageId: messege.MessageId,
-                    //        replyMarkup: GetButtons() 
-                    //        );// отправка стикера на сообщение пользователя, ссылка это стикер(скопируй ссылку на стикер с сайта)
-
-                    //    break;
-                    //case "image":
-                    //    await client.SendPhotoAsync
-                    //        (
-                    //        chatId: messege.Chat.Id,
-                    //        photo: "https://www.google.com/imgres?imgurl=https%3A%2F%2Fcdn.eso.org%2Fimages%2Fthumb300y%2Feso1907a.jpg&imgrefurl=https%3A%2F%2Fwww.eso.org%2Fpublic%2Fimages%2Farchive%2Fzoomable%2F&tbnid=nqk2hAE034Z3nM&vet=12ahUKEwiW3tODvo3wAhUZhaQKHencAtoQMyggegUIARD5AQ..i&docid=KeUcu23CqZzwAM&w=515&h=300&q=image&ved=2ahUKEwiW3tODvo3wAhUZhaQKHencAtoQMyggegUIARD5AQ",
-                    //        replyMarkup: GetButtons()
-                    //        );
-                    //    break;
                     case "menu":
                         await client.SendTextMessageAsync(
                             messege.Chat.Id,
                             messege.Text,
-                            replyMarkup : GetButtons()
+                            replyMarkup: GetButtons()
                             );
                         break;
+
                     case "Добавить заметку":
-                        {
-                            await client.SendTextMessageAsync(
-                                messege.Chat.Id,
-                                "Введите имя заметки"
-                                );
-                            addNote = true;
-                            break;
-                        }
-                    case "test":
                         await client.SendTextMessageAsync(
                             messege.Chat.Id,
-                            $"InLineButton",replyMarkup: GetInLineButton(1)
+                            "Введите имя заметки"
                             );
+                        addNoteName = true;
                         break;
+
+                    case "Список заметок":
+                        string mes = "Список заметок:\n";
+                        foreach (var note in notes)
+                        {
+                            mes += note.NoteName + "\n";
+                        }
+                        await client.SendTextMessageAsync(messege.Chat.Id, mes, replyMarkup: GetButtons());
+                        break;
+
+                    case "Посмотреть заметку":
+                        await client.SendTextMessageAsync(messege.Chat.Id, "Введите имя заметки:");
+                        viewNote = true;
+                        break;
+
+                    case "Удалить заметку":
+                        await client.SendTextMessageAsync(messege.Chat.Id, "Введите имя заметки:");
+                        delNote = true;
+                        break;
+
+                    case "Редактировать заметку":
+                        await client.SendTextMessageAsync(messege.Chat.Id, "Введите имя заметки:");
+                        editNote = true;
+                        break;
+
                     default:
-                        if (addNote != false)
+                        if (addNoteName)
                         {
                             note.NoteName = messege.Text;
-                            note.IdChat =Convert.ToInt32(messege.Chat.Id);
+                            note.IdChat = Convert.ToInt32(messege.Chat.Id);
+                            addNoteName = false;
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Введите текст заметки:");
+                            addNoteText = true;
+                        }
+                        else if (addNoteText)
+                        {
+                            note.Text = messege.Text;
+                            addNoteText = false;
+
+                            AddNoteToDB();
+
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Заметка добавлена успешно!", replyMarkup: GetButtons());
+                        }
+                        else if (viewNote)
+                        {
+                            var searchedNote = notes.Select(x => x).Where(x => x.IdChat == messege.Chat.Id).Where(x => x.NoteName == messege.Text).FirstOrDefault();
+                            string noteStr = "Имя заметки: " + searchedNote.NoteName + "\nТекст заметки:\n\n" + searchedNote.Text;
+                            await client.SendTextMessageAsync(messege.Chat.Id, noteStr, replyMarkup: GetButtons());
+                            viewNote = false;
+                        }
+                        else if(delNote)
+                        {
+                            using (var context = new DataContext())
+                            {
+                                context.Notes.Remove(notes.Select(x => x).Where(x => x.IdChat == messege.Chat.Id).Where(x => x.NoteName == messege.Text).FirstOrDefault());
+                                context.SaveChanges();
+                                notes = context.Notes.ToList();
+                            }
+                            string otv = "Удаление прошло успешно";
+                            await client.SendTextMessageAsync(messege.Chat.Id, otv, replyMarkup: GetButtons());
+                        }
+                        else if(editNote)
+                        {
+                                await client.SendTextMessageAsync(messege.Chat.Id,"Выберите опцию",replyMarkup:GetInLineButtons());
+                            using (var context = new DataContext())
+                            {
+                                var editedNote = context.Notes.Select(x => x).Where(x => x.NoteName == messege.Text).FirstOrDefault();
+                                noteName = editedNote.NoteName;
+                                noteText = editedNote.Text;
+                                noteId = editedNote.Id;
+                                editNote = false;
+                            }
+                        }
+                        else if(editNoteName)
+                        {
+                            noteName = messege.Text;
+                            editNoteName = false;
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Выберите опцию", replyMarkup: GetInLineButtons());
+                        }
+                        else if (editNoteText)
+                        {
+                            noteText = messege.Text;
+                            editNoteText = false;
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Выберите опцию", replyMarkup: GetInLineButtons());
                         }
                         else
                         {
@@ -115,16 +183,42 @@ namespace MyProject_KPiEP
                                 messege.Chat.Id,
                                 $"И че мне с этим делать",
                                 replyToMessageId: messege.MessageId
-                                );//отвечает на сообщение пользователя test
+                                );
                         }
                         break;
                 }
             }
         }
 
-        private static IReplyMarkup GetInLineButton(int id)
+        private static List<NotesEntity> GetAllNotes()
         {
-            return new InlineKeyboardMarkup(new InlineKeyboardButton { Text = "vlad", CallbackData=id.ToString() }); ;
+            List<NotesEntity> notes = new List<NotesEntity>();
+            using (var context = new DataContext())
+            {
+                notes = context.Notes.ToList();
+            }
+
+            return notes;
+        }
+
+        private static void AddNoteToDB()
+        {
+            using (var dataSource = new DataContext())
+            {
+                dataSource.Notes.Add(note);
+                dataSource.SaveChanges();
+                notes = dataSource.Notes.ToList();
+            }
+        }
+
+        private static IReplyMarkup GetInLineButtons()
+        {
+            List<List<InlineKeyboardButton>> buttons = new List<List<InlineKeyboardButton>>
+            {
+                new List<InlineKeyboardButton>{new InlineKeyboardButton { Text = "Имя заметки", CallbackData = "editN" },new InlineKeyboardButton { Text = "Содержание заметки", CallbackData = "editT" } },
+                new List<InlineKeyboardButton>{new InlineKeyboardButton { Text = "Сохранить", CallbackData = "Save" } }
+            };
+            return new InlineKeyboardMarkup(buttons.ToArray());
         }
 
         private static IReplyMarkup GetButtons()
@@ -133,8 +227,10 @@ namespace MyProject_KPiEP
             {
                 Keyboard = new List<List<KeyboardButton>>
                 {
-                    new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку" }, new KeyboardButton { Text = "Удалить заметку" }, new KeyboardButton {Text = "Редактировать заметку" } }
-                }
+                    new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку" }, new KeyboardButton { Text = "Удалить заметку" }, new KeyboardButton { Text = "Редактировать заметку" }},
+                    new List<KeyboardButton> { new KeyboardButton { Text = "Список заметок" }, new KeyboardButton { Text = "Посмотреть заметку" } }
+                },
+                ResizeKeyboard = true
             };
         }
     }
