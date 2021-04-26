@@ -8,6 +8,7 @@ namespace MyProject_KPiEP
     public class DataContext : DbContext
     {
         public DbSet<NotesEntity> Notes { get; set; }
+        public DbSet<DelayedNote> DelayedNotes { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

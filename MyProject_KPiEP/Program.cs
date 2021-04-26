@@ -1,12 +1,17 @@
-﻿using Microsoft.VisualBasic;
+﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Data.Entity;
 using System.Data.Entity.Core.Metadata.Edm;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks.Dataflow;
+using System.Timers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.InlineQueryResults.Abstractions;
@@ -18,15 +23,26 @@ namespace MyProject_KPiEP
     {
         static string BotToken { get; set; } = "1713856634:AAEtV-XyEnqhmJAcNCOfLedlvxSjj5cftz8";
         static TelegramBotClient client;
-        static bool addNoteName = false, addNoteText = false, viewNote = false, delNote = false,editNote=false,editNoteName=false,editNoteText=false;
+        static bool addNoteName = false, addNoteText = false, viewNote = false, delNote = false,editNote=false,editNoteName=false,editNoteText=false,addNoteTime=false;
         static NotesEntity note= new NotesEntity();
+        static DelayedNote delayedNote = new DelayedNote();
         static List<NotesEntity> notes = new List<NotesEntity>();
+        static List<DelayedNote> delayedNotes = new List<DelayedNote>();
         static string noteText="", noteName="";
         static int noteId=0;
+        static System.Timers.Timer timer = new System.Timers.Timer(60000);
+
         static void Main(string[] args)
         {
             client = new TelegramBotClient(BotToken);
+
             notes = GetAllNotes();
+            delayedNotes = GetAllDelayedNotes();
+
+            timer.Elapsed += Timer_Elapsed;
+            timer.AutoReset = true;
+            timer.Enabled = true;
+
             client.StartReceiving();
             Console.WriteLine("Пуск");
             client.OnMessage += Client_OnMessage;
@@ -37,12 +53,37 @@ namespace MyProject_KPiEP
             client.StopReceiving();
         }
 
+        private static async void Timer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            foreach (var delayedNote in delayedNotes)
+            {
+                DateTime date;
+                date = DateTime.Parse(delayedNote.Time);
+                if (date.Date==DateTime.Now.Date || date.Date < DateTime.Now.Date)
+                {
+                        string noteStr = "Имя заметки: " + delayedNote.NoteName + "\nТекст заметки:\n\n" + delayedNote.Text;
+                        await client.SendTextMessageAsync(delayedNote.IdChat, noteStr);
+                }
+            }
+        }
+
+        private static List<DelayedNote> GetAllDelayedNotes()
+        {
+            List<DelayedNote> delayedNotes = new List<DelayedNote>();
+            using (var context = new DataContext())
+            {
+                context.DelayedNotes.Load();
+                delayedNotes=context.DelayedNotes.ToList();
+            }
+            return delayedNotes;
+        }
+
         private static async void Client_OnCallbackQuery(object sender, Telegram.Bot.Args.CallbackQueryEventArgs e)
         {
             switch (e.CallbackQuery.Data)
             {
                 case "editN":
-                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id,"Введите новое имя");
+                    await client.SendTextMessageAsync(chatId: e.CallbackQuery.Message.Chat.Id,"Введите новое имя заметки");
                     editNoteName = true;
                     break;
 
@@ -52,16 +93,16 @@ namespace MyProject_KPiEP
                     break;
 
                 case "Save":
-                    using (var context = new DataContext())
-                    {
-                        var editedNote = context.Notes.Select(x => x).Where(x => x.Id == noteId).FirstOrDefault();
-                        editedNote.Text = noteText;
-                        editedNote.NoteName = noteName;
-                        context.SaveChanges();
-                        editNote = false;
-                        notes = context.Notes.ToList();
-                    }
-                    await client.SendTextMessageAsync(e.CallbackQuery.Message.Chat.Id,"Изменение прошло успешно!");
+                        using (var context = new DataContext())
+                        {
+                            var editedNote = context.Notes.Select(x => x).Where(x => x.Id == noteId).FirstOrDefault();
+                            editedNote.Text = noteText;
+                            editedNote.NoteName = noteName;
+                            context.SaveChanges();
+                            editNote = false;
+                            notes = context.Notes.ToList();
+                        }
+                        await client.SendTextMessageAsync(e.CallbackQuery.Message.Chat.Id, "Изменение прошло успешно!");
                     break;
 
                 default:
@@ -93,11 +134,23 @@ namespace MyProject_KPiEP
                         addNoteName = true;
                         break;
 
+                    case "Добавить заметку с напоминанием":
+                        await client.SendTextMessageAsync(
+                            messege.Chat.Id,
+                            "Введите дату и время(dd.mm.yyyy hh:mm)"
+                            );
+                        addNoteTime = true;
+                        break;
+
                     case "Список заметок":
                         string mes = "Список заметок:\n";
                         foreach (var note in notes)
                         {
                             mes += note.NoteName + "\n";
+                        }
+                        foreach (var item in delayedNotes)
+                        {
+                            mes += item.NoteName + "\n";
                         }
                         await client.SendTextMessageAsync(messege.Chat.Id, mes, replyMarkup: GetButtons());
                         break;
@@ -120,18 +173,37 @@ namespace MyProject_KPiEP
                     default:
                         if (addNoteName)
                         {
-                            note.NoteName = messege.Text;
-                            note.IdChat = Convert.ToInt32(messege.Chat.Id);
+                            if (delayedNote.Time!="")
+                            {
+                                delayedNote.NoteName = messege.Text;
+                                delayedNote.IdChat= Convert.ToInt32(messege.Chat.Id);
+                            }
+                            else
+                            {
+                                note.NoteName = messege.Text;
+                                note.IdChat = Convert.ToInt32(messege.Chat.Id);
+                            }
+
                             addNoteName = false;
                             await client.SendTextMessageAsync(messege.Chat.Id, "Введите текст заметки:");
                             addNoteText = true;
                         }
                         else if (addNoteText)
                         {
-                            note.Text = messege.Text;
+                            if (delayedNote.Time != "")
+                            {
+                                delayedNote.Text = messege.Text;
+                                AddDeleyedNote();
+                            }
+                            else
+                            {
+                                note.Text = messege.Text;
+                                AddNoteToDB();
+                            }
                             addNoteText = false;
 
-                            AddNoteToDB();
+                            notes = GetAllNotes();
+                            delayedNotes = GetAllDelayedNotes();
 
                             await client.SendTextMessageAsync(messege.Chat.Id, "Заметка добавлена успешно!", replyMarkup: GetButtons());
                         }
@@ -177,6 +249,14 @@ namespace MyProject_KPiEP
                             editNoteText = false;
                             await client.SendTextMessageAsync(messege.Chat.Id, "Выберите опцию", replyMarkup: GetInLineButtons());
                         }
+                        else if(addNoteTime)
+                        {
+                            delayedNote.IdChat = Convert.ToInt32(messege.Chat.Id);
+                            delayedNote.Time = messege.Text;
+                            addNoteTime = false;
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Введите текст заметки:");
+                            addNoteName = true;
+                        }
                         else
                         {
                             await client.SendTextMessageAsync(
@@ -187,6 +267,16 @@ namespace MyProject_KPiEP
                         }
                         break;
                 }
+            }
+        }
+
+        private static void AddDeleyedNote()
+        {
+            using (var dataSource = new DataContext())
+            {
+                dataSource.DelayedNotes.Add(delayedNote);
+                dataSource.SaveChanges();
+                notes = dataSource.Notes.ToList();
             }
         }
 
@@ -227,7 +317,7 @@ namespace MyProject_KPiEP
             {
                 Keyboard = new List<List<KeyboardButton>>
                 {
-                    new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку" }, new KeyboardButton { Text = "Удалить заметку" }, new KeyboardButton { Text = "Редактировать заметку" }},
+                    new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку" }, new KeyboardButton { Text = "Удалить заметку" }, new KeyboardButton { Text = "Редактировать заметку" }, new KeyboardButton { Text = "Добавить заметку с напоминанием" } },
                     new List<KeyboardButton> { new KeyboardButton { Text = "Список заметок" }, new KeyboardButton { Text = "Посмотреть заметку" } }
                 },
                 ResizeKeyboard = true
