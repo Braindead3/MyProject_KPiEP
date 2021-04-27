@@ -9,7 +9,9 @@ namespace MyProject_KPiEP
     {
         public int Id { get; set; }
         public string Text { get; set; }
-        public int IdChat { get; set; }
+        public string IdChat { get; set; }
         public string NoteName { get; set; }
+        public int Delay { get; set; }
+        public string Time { get; set; }
     }
 }
