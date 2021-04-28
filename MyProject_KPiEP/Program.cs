@@ -319,7 +319,8 @@ namespace MyProject_KPiEP
                 Keyboard = new List<List<KeyboardButton>>
                 {
                     new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку" }, new KeyboardButton { Text = "Удалить заметку" }, new KeyboardButton { Text = "Редактировать заметку" }},
-                    new List<KeyboardButton> { new KeyboardButton { Text = "Список заметок" }, new KeyboardButton { Text = "Посмотреть заметку" }, new KeyboardButton { Text = "Добавить заметку с напоминанием" } }
+                    new List<KeyboardButton> { new KeyboardButton { Text = "Список заметок" }, new KeyboardButton { Text = "Посмотреть заметку" }},
+                    new List<KeyboardButton> { new KeyboardButton { Text = "Добавить заметку с напоминанием" } }
                 },
                 ResizeKeyboard = true
             };
