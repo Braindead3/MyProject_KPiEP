@@ -237,7 +237,7 @@ namespace MyProject_KPiEP
                         }
                         else if (editNote)
                         {
-                            await client.SendTextMessageAsync(messege.Chat.Id, "Выберите опцию", replyMarkup: GetInLineButtons());
+                            await client.SendTextMessageAsync(messege.Chat.Id, "Выберите, что изменить.", replyMarkup: GetInLineButtons());
                             using (var context = new DataContext())
                             {
                                 var editedNote = context.Notes.Select(x => x).Where(x => x.NoteName == messege.Text).FirstOrDefault();
