@@ -261,11 +261,19 @@ namespace MyProject_KPiEP
                         }
                         else if (addNoteTime)
                         {
-                            note.Time = messege.Text;
-                            note.Delay = 1;
-                            addNoteTime = false;
-                            await client.SendTextMessageAsync(messege.Chat.Id, "Введите имя заметки:");
-                            addNoteName = true;
+                            var date = DateTime.Parse(messege.Text);
+                            if (date.Date <= DateTime.Now.Date)
+                            {
+                                await client.SendTextMessageAsync(messege.Chat.Id, "Введите другое время(которое не позже настоящего)");
+                            }
+                            else
+                            {
+                                note.Delay = 1;
+                                note.Time = messege.Text;
+                                addNoteTime = false;
+                                await client.SendTextMessageAsync(messege.Chat.Id, "Введите имя заметки:");
+                                addNoteName = true;
+                            }
                         }
                         else
                         {
